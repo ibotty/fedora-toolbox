@@ -68,6 +68,7 @@ toolbox_container_prefix_default=""
 toolbox_image=""
 user_id_real=$(id -ru 2>&3)
 verbose=false
+init=false
 saved_toolbox_image=""
 
 
@@ -752,6 +753,14 @@ create()
         spinner_directory=""
     fi
 
+    if $init; then
+        pid_ns=""
+        init_option="--init"
+    else
+        pid_ns="--pid host"
+        init_option=""
+    fi
+
     # shellcheck disable=SC2086
     $prefix_sudo podman create \
             $dns_none \
@@ -763,6 +772,7 @@ create()
             --name $toolbox_container \
             --network host \
             $no_hosts \
+            $pid_ns \
             --privileged \
             --security-opt label=disable \
             --uidmap "$user_id_real":0:1 \
@@ -784,6 +794,7 @@ create()
             --workdir "$HOME" \
             "$base_toolbox_image_full" \
             toolbox --verbose init-container \
+                    $init_option \
                     --home "$HOME" \
                     $monitor_host \
                     --shell "$SHELL" \
@@ -957,7 +968,7 @@ EOF
         fi
     fi
 
-    if [[ $$ -eq 1 ]]; then
+    if $init; then
         exec /sbin/init
     else
         sleep +Inf
@@ -1612,6 +1623,7 @@ usage()
     echo "Usage: toolbox [-v | --verbose]"
     echo "               [-y | --assumeyes]"
     echo "               create [--candidate-registry]"
+    echo "                      [--init]"
     echo "                      [-c | --container <name>]"
     echo "                      [-i | --image <name>]"
     echo "                      [-r | --release <release>]"
@@ -1621,7 +1633,8 @@ usage()
     echo "                     [-r | --release <release>]"
     echo "   or: toolbox [-v | --verbose]"
     echo "               [-y | --assumeyes]"
-    echo "               recreate [-c | --container <name>]"
+    echo "               recreate [--init]"
+    echo "                        [-c | --container <name>]"
     echo "                        [-r | --release <release>]"
     echo "   or: toolbox [-v | --verbose]"
     echo "               [-y | --assumeyes]"
@@ -1630,6 +1643,7 @@ usage()
     echo "                              --shell"
     echo "                              --uid"
     echo "                              --user"
+    echo "                              [--init]"
     echo "   or: toolbox [-v | --verbose]"
     echo "               [-y | --assumeyes]"
     echo "               list [-c | --containers]"
@@ -1764,6 +1778,9 @@ if [ -f /run/.containerenv ] 2>&3; then
                         exit_if_missing_argument --user "$1"
                         init_container_user="$1"
                         ;;
+                    --init )
+                        init=true
+                        ;;
                     * )
                         exit_if_unrecognized_option "$1"
                 esac
@@ -1795,6 +1812,9 @@ case $op in
             case $1 in
                 --candidate-registry )
                     registry=$registry_candidate
+                    ;;
+                --init )
+                    init=true
                     ;;
                 -c | --container )
                     shift
@@ -1864,6 +1884,9 @@ case $op in
     recreate )
         while has_prefix "$1" -; do
             case $1 in
+                --init )
+                    init=true
+                    ;;
                 -c | --container )
                     shift
                     exit_if_missing_argument --container "$1"
