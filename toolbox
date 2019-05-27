@@ -763,7 +763,6 @@ create()
             --name $toolbox_container \
             --network host \
             $no_hosts \
-            --pid host \
             --privileged \
             --security-opt label=disable \
             --uidmap "$user_id_real":0:1 \
@@ -958,7 +957,11 @@ EOF
         fi
     fi
 
-    exec sleep +Inf
+    if [[ $$ -eq 1 ]]; then
+        exec /sbin/init
+    else
+        sleep +Inf
+    fi
 }
 
 
