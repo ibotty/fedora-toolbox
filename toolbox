@@ -68,6 +68,7 @@ toolbox_container_prefix_default=""
 toolbox_image=""
 user_id_real=$(id -ru 2>&3)
 verbose=false
+saved_toolbox_image=""
 
 
 LGC='\033[1;32m' # Light Green Color
@@ -812,6 +813,31 @@ create()
 enter()
 {
     run true false "$SHELL" -l
+}
+
+
+save(){
+    if [ -z $saved_toolbox_image ]; then
+        saved_toolbox_image="$toolbox_container-saved-$(date +%Y.%m.%d.%H%M%S)"
+    fi
+
+    podman commit "$toolbox_container" "$saved_toolbox_image"
+    echo "Image saved as: $saved_toolbox_image"
+}
+
+
+recreate(){
+
+    if ! save; then
+        return 1
+    fi
+
+    remove_containers "$toolbox_container" false true
+
+    base_toolbox_image="$saved_toolbox_image"
+    if ! create false; then
+        return 1
+    fi
 }
 
 
@@ -1592,6 +1618,10 @@ usage()
     echo "                     [-r | --release <release>]"
     echo "   or: toolbox [-v | --verbose]"
     echo "               [-y | --assumeyes]"
+    echo "               recreate [-c | --container <name>]"
+    echo "                        [-r | --release <release>]"
+    echo "   or: toolbox [-v | --verbose]"
+    echo "               [-y | --assumeyes]"
     echo "               init-container --home"
     echo "                              --monitor-host"
     echo "                              --shell"
@@ -1694,7 +1724,7 @@ shift
 
 if [ -f /run/.containerenv ] 2>&3; then
     case $op in
-        create | enter | list | rm | rmi | run )
+        create | recreate | enter | list | rm | rmi | run )
             if ! [ -f /run/.toolboxenv ] 2>&3; then
                 echo "$base_toolbox_command: this is not a toolbox container" >&2
                 exit 1
@@ -1826,6 +1856,35 @@ case $op in
             exit 1
         fi
         enter
+        exit
+        ;;
+    recreate )
+        while has_prefix "$1" -; do
+            case $1 in
+                -c | --container )
+                    shift
+                    exit_if_missing_argument --container "$1"
+                    toolbox_container=$1
+                    ;;
+                -r | --release )
+                    shift
+                    exit_if_missing_argument --release "$1"
+                    arg=$(echo "$1" | sed "s/^F\|^f//" 2>&3)
+                    exit_if_non_positive_argument --release "$arg"
+                    release=$arg
+                    ;;
+                * )
+                    exit_if_unrecognized_option "$1"
+            esac
+            shift
+        done
+        exit_if_extra_operand "$1"
+        if ! update_container_and_image_names; then
+            exit 1
+        fi
+        if ! recreate; then
+            exit 1
+        fi
         exit
         ;;
     init-container )
