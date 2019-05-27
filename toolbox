@@ -842,12 +842,16 @@ recreate(){
         return 1
     fi
 
+    old_image="$(podman container inspect --format '{{.Config.Image}}' "$toolbox_container")"
+
     remove_containers "$toolbox_container" false true
 
     base_toolbox_image="$saved_toolbox_image"
     if ! create false; then
         return 1
     fi
+
+    echo "Remove old image with: podman rmi $old_image"
 }
 
 
